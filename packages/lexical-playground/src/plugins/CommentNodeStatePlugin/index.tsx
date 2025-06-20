@@ -19,14 +19,6 @@ import type {Doc} from 'yjs';
 
 import './index.css';
 
-import {
-  $createMarkNode,
-  $getMarkIDs,
-  $isMarkNode,
-  $unwrapMarkNode,
-  $wrapSelectionInMarkNode,
-  MarkNode,
-} from '@lexical/mark';
 import {AutoFocusPlugin} from '@lexical/react/LexicalAutoFocusPlugin';
 import {ClearEditorPlugin} from '@lexical/react/LexicalClearEditorPlugin';
 import {useCollaborationContext} from '@lexical/react/LexicalCollaborationContext';
@@ -39,9 +31,8 @@ import {OnChangePlugin} from '@lexical/react/LexicalOnChangePlugin';
 import {PlainTextPlugin} from '@lexical/react/LexicalPlainTextPlugin';
 import {createDOMRange, createRectsFromDOMRange} from '@lexical/selection';
 import {$isRootTextContentEmpty, $rootTextContent} from '@lexical/text';
-import {mergeRegister, registerNestedElementResolver} from '@lexical/utils';
+import {mergeRegister} from '@lexical/utils';
 import {
-  $getNodeByKey,
   $getSelection,
   $isRangeSelection,
   $isTextNode,
@@ -50,6 +41,7 @@ import {
   COMMAND_PRIORITY_EDITOR,
   COMMAND_PRIORITY_NORMAL,
   createCommand,
+  //createState,
   getDOMSelection,
   KEY_ESCAPE_COMMAND,
 } from 'lexical';
@@ -527,7 +519,6 @@ function CommentsPanelList({
   deleteCommentOrThread,
   listRef,
   submitAddComment,
-  markNodeMap,
 }: {
   activeIDs: Array<string>;
   comments: Comments;
@@ -536,14 +527,12 @@ function CommentsPanelList({
     thread?: Thread,
   ) => void;
   listRef: {current: null | HTMLUListElement};
-  markNodeMap: Map<string, Set<NodeKey>>;
   submitAddComment: (
     commentOrThread: Comment | Thread,
     isInlineComment: boolean,
     thread?: Thread,
   ) => void;
 }): JSX.Element {
-  const [editor] = useLexicalComposerContext();
   const [counter, setCounter] = useState(0);
   const [modal, showModal] = useModal();
   const rtf = useMemo(
@@ -573,6 +562,8 @@ function CommentsPanelList({
         const id = commentOrThread.id;
         if (commentOrThread.type === 'thread') {
           const handleClickThread = () => {
+            // TODO: select the start of the node corresponding to the thread
+            /*
             const markNodeKeys = markNodeMap.get(id);
             if (
               markNodeKeys !== undefined &&
@@ -598,7 +589,7 @@ function CommentsPanelList({
                   },
                 },
               );
-            }
+            }*/
           };
 
           return (
@@ -606,9 +597,14 @@ function CommentsPanelList({
             <li
               key={id}
               onClick={handleClickThread}
+              /*
               className={`CommentPlugin_CommentsPanel_List_Thread ${
                 markNodeMap.has(id) ? 'interactive' : ''
-              } ${activeIDs.indexOf(id) === -1 ? '' : 'active'}`}>
+              } ${activeIDs.indexOf(id) === -1 ? '' : 'active'}`}>*/
+              // TODO: if the marknode exists, it's interactive
+              className={`CommentPlugin_CommentsPanel_List_Thread ${
+                activeIDs.indexOf(id) === -1 ? '' : 'active'
+              }`}>
               <div className="CommentPlugin_CommentsPanel_List_Thread_QuoteBox">
                 <blockquote className="CommentPlugin_CommentsPanel_List_Thread_Quote">
                   {'> '}
@@ -669,7 +665,6 @@ function CommentsPanel({
   deleteCommentOrThread,
   comments,
   submitAddComment,
-  markNodeMap,
 }: {
   activeIDs: Array<string>;
   comments: Comments;
@@ -677,7 +672,6 @@ function CommentsPanel({
     commentOrThread: Comment | Thread,
     thread?: Thread,
   ) => void;
-  markNodeMap: Map<string, Set<NodeKey>>;
   submitAddComment: (
     commentOrThread: Comment | Thread,
     isInlineComment: boolean,
@@ -699,7 +693,6 @@ function CommentsPanel({
           deleteCommentOrThread={deleteCommentOrThread}
           listRef={listRef}
           submitAddComment={submitAddComment}
-          markNodeMap={markNodeMap}
         />
       )}
     </div>
@@ -712,6 +705,16 @@ function useCollabAuthorName(): string {
   return yjsDocMap.has('comments') ? name : 'Playground User';
 }
 
+/*const commentState = createState('comment', {
+  parse: (jsonValue) => {
+    return jsonValue;
+  },
+  unparse: (parsed) => {
+    return parsed;
+  },
+  isEqual: (a, b) => a === b,
+});*/
+
 export default function CommentNodeStatePlugin({
   providerFactory,
 }: {
@@ -721,9 +724,7 @@ export default function CommentNodeStatePlugin({
   const [editor] = useLexicalComposerContext();
   const commentStore = useMemo(() => new CommentStore(editor), [editor]);
   const comments = useCommentStore(commentStore);
-  const markNodeMap = useMemo<Map<string, Set<NodeKey>>>(() => {
-    return new Map();
-  }, []);
+
   const [activeAnchorKey, setActiveAnchorKey] = useState<NodeKey | null>();
   const [activeIDs, setActiveIDs] = useState<Array<string>>([]);
   const [showCommentInput, setShowCommentInput] = useState(false);
@@ -751,6 +752,8 @@ export default function CommentNodeStatePlugin({
   const deleteCommentOrThread = useCallback(
     (comment: Comment | Thread, thread?: Thread) => {
       if (comment.type === 'comment') {
+        // TODO: delete comment or thread
+        /*
         const deletionInfo = commentStore.deleteCommentOrThread(
           comment,
           thread,
@@ -780,10 +783,11 @@ export default function CommentNodeStatePlugin({
               }
             });
           });
-        }
+        }*/
       }
     },
-    [commentStore, editor, markNodeMap],
+    //[commentStore, editor],
+    [],
   );
 
   const submitAddComment = useCallback(
@@ -797,11 +801,10 @@ export default function CommentNodeStatePlugin({
       if (isInlineComment) {
         editor.update(() => {
           if ($isRangeSelection(selection)) {
-            const isBackward = selection.isBackward();
-            const id = commentOrThread.id;
-
-            // Wrap content in a MarkNode
-            $wrapSelectionInMarkNode(selection, isBackward, id);
+            // TODO: set node state based on selection
+            /*const isBackward = selection.isBackward();
+            const id = commentOrThread.id;*/
+            //$wrapSelectionInMarkNode(selection, isBackward, id);
           }
         });
         setShowCommentInput(false);
@@ -813,6 +816,8 @@ export default function CommentNodeStatePlugin({
   useEffect(() => {
     const changedElems: Array<HTMLElement> = [];
     for (let i = 0; i < activeIDs.length; i++) {
+      // TODO: mutate selected nodes style and open comments side panel
+      /*
       const id = activeIDs[i];
       const keys = markNodeMap.get(id);
       if (keys !== undefined) {
@@ -824,7 +829,7 @@ export default function CommentNodeStatePlugin({
             setShowComments(true);
           }
         }
-      }
+      }*/
     }
     return () => {
       for (let i = 0; i < changedElems.length; i++) {
@@ -832,67 +837,14 @@ export default function CommentNodeStatePlugin({
         changedElem.classList.remove('selected');
       }
     };
-  }, [activeIDs, editor, markNodeMap]);
+  }, [activeIDs, editor]);
 
   useEffect(() => {
-    const markNodeKeysToIDs: Map<NodeKey, Array<string>> = new Map();
+    //const markNodeKeysToIDs: Map<NodeKey, Array<string>> = new Map();
 
     return mergeRegister(
-      registerNestedElementResolver<MarkNode>(
-        editor,
-        MarkNode,
-        (from: MarkNode) => {
-          return $createMarkNode(from.getIDs());
-        },
-        (from: MarkNode, to: MarkNode) => {
-          // Merge the IDs
-          const ids = from.getIDs();
-          ids.forEach((id) => {
-            to.addID(id);
-          });
-        },
-      ),
-      editor.registerMutationListener(
-        MarkNode,
-        (mutations) => {
-          editor.getEditorState().read(() => {
-            for (const [key, mutation] of mutations) {
-              const node: null | MarkNode = $getNodeByKey(key);
-              let ids: NodeKey[] = [];
-
-              if (mutation === 'destroyed') {
-                ids = markNodeKeysToIDs.get(key) || [];
-              } else if ($isMarkNode(node)) {
-                ids = node.getIDs();
-              }
-
-              for (let i = 0; i < ids.length; i++) {
-                const id = ids[i];
-                let markNodeKeys = markNodeMap.get(id);
-                markNodeKeysToIDs.set(key, ids);
-
-                if (mutation === 'destroyed') {
-                  if (markNodeKeys !== undefined) {
-                    markNodeKeys.delete(key);
-                    if (markNodeKeys.size === 0) {
-                      markNodeMap.delete(id);
-                    }
-                  }
-                } else {
-                  if (markNodeKeys === undefined) {
-                    markNodeKeys = new Set();
-                    markNodeMap.set(id, markNodeKeys);
-                  }
-                  if (!markNodeKeys.has(key)) {
-                    markNodeKeys.add(key);
-                  }
-                }
-              }
-            }
-          });
-        },
-        {skipInitialization: false},
-      ),
+      // TODO: handle nested comments
+      // REMOVED: syncing marknodes with markNodeMap
       editor.registerUpdateListener(({editorState, tags}) => {
         editorState.read(() => {
           const selection = $getSelection();
@@ -903,10 +855,8 @@ export default function CommentNodeStatePlugin({
             const anchorNode = selection.anchor.getNode();
 
             if ($isTextNode(anchorNode)) {
-              const commentIDs = $getMarkIDs(
-                anchorNode,
-                selection.anchor.offset,
-              );
+              // TODO RG: when selecting a range, return the comment IDs under the range here
+              const commentIDs: string[] = [];
               if (commentIDs !== null) {
                 setActiveIDs(commentIDs);
                 hasActiveIds = true;
@@ -943,7 +893,7 @@ export default function CommentNodeStatePlugin({
         COMMAND_PRIORITY_EDITOR,
       ),
     );
-  }, [editor, markNodeMap]);
+  }, [editor]);
 
   const onAddComment = () => {
     editor.dispatchCommand(INSERT_INLINE_COMMAND, undefined);
@@ -989,7 +939,6 @@ export default function CommentNodeStatePlugin({
             submitAddComment={submitAddComment}
             deleteCommentOrThread={deleteCommentOrThread}
             activeIDs={activeIDs}
-            markNodeMap={markNodeMap}
           />,
           document.body,
         )}
