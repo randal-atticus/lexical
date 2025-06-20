@@ -69,6 +69,7 @@ import useModal from '../../hooks/useModal';
 import CommentEditorTheme from '../../themes/CommentEditorTheme';
 import Button from '../../ui/Button';
 import ContentEditable from '../../ui/ContentEditable';
+import {$patchSelectedCommentId} from './commentState';
 
 export const INSERT_INLINE_COMMAND: LexicalCommand<void> = createCommand(
   'INSERT_INLINE_COMMAND',
@@ -705,16 +706,6 @@ function useCollabAuthorName(): string {
   return yjsDocMap.has('comments') ? name : 'Playground User';
 }
 
-/*const commentState = createState('comment', {
-  parse: (jsonValue) => {
-    return jsonValue;
-  },
-  unparse: (parsed) => {
-    return parsed;
-  },
-  isEqual: (a, b) => a === b,
-});*/
-
 export default function CommentNodeStatePlugin({
   providerFactory,
 }: {
@@ -800,12 +791,7 @@ export default function CommentNodeStatePlugin({
       commentStore.addComment(commentOrThread, thread);
       if (isInlineComment) {
         editor.update(() => {
-          if ($isRangeSelection(selection)) {
-            // TODO: set node state based on selection
-            /*const isBackward = selection.isBackward();
-            const id = commentOrThread.id;*/
-            //$wrapSelectionInMarkNode(selection, isBackward, id);
-          }
+          $patchSelectedCommentId(commentOrThread.id);
         });
         setShowCommentInput(false);
       }
