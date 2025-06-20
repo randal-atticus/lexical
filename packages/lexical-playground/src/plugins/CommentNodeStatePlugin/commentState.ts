@@ -9,6 +9,7 @@ import {$forEachSelectedTextNode} from '@lexical/selection';
 import {
   $getPreviousSelection,
   $getSelection,
+  $getState,
   $isRangeSelection,
   $isTextNode,
   $setSelection,
@@ -17,25 +18,30 @@ import {
   LexicalNode,
   ValueOrUpdater,
 } from 'lexical';
+import {isEqual, uniq} from 'lodash-es';
 
-const commentIdState = createState('commentId', {
-  isEqual: (a, b) => a === b,
+const commentIdsState = createState<string, string[]>('commentIds', {
+  isEqual: (a, b) => isEqual(a, b),
   parse: (jsonValue) => {
-    return jsonValue;
+    return jsonValue as string[];
   },
   unparse: (parsed) => {
     return parsed;
   },
 });
 
-export function $setCommentIdState<T extends LexicalNode>(
-  node: T,
-  valueOrUpdater: ValueOrUpdater<string>,
-): T {
-  return $setState(node, commentIdState, valueOrUpdater);
+export function $getCommentIdsState(node: LexicalNode): string[] {
+  return $getState(node, commentIdsState);
 }
 
-export function $patchSelectedCommentId(commentId: string): boolean {
+export function $setCommentIdsState<T extends LexicalNode>(
+  node: T,
+  valueOrUpdater: ValueOrUpdater<string[]>,
+): T {
+  return $setState(node, commentIdsState, valueOrUpdater);
+}
+
+export function $patchSelectedCommentId(commentIds: string[]): boolean {
   let selection = $getSelection();
   if (!selection) {
     const prevSelection = $getPreviousSelection();
@@ -46,13 +52,19 @@ export function $patchSelectedCommentId(commentId: string): boolean {
     $setSelection(selection);
   }
 
+  const addCommentIdsUpdater = (prevCommentIds: string[]) => {
+    return uniq([...(prevCommentIds ?? []), ...commentIds]);
+  };
+
   if ($isRangeSelection(selection) && selection.isCollapsed()) {
     const node = selection.focus.getNode();
     if ($isTextNode(node)) {
-      $setCommentIdState(node, commentId);
+      $setCommentIdsState(node, addCommentIdsUpdater);
     }
   } else {
-    $forEachSelectedTextNode((node) => $setCommentIdState(node, commentId));
+    $forEachSelectedTextNode((node) =>
+      $setCommentIdsState(node, addCommentIdsUpdater),
+    );
   }
   return true;
 }

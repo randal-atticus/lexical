@@ -33,6 +33,7 @@ import {createDOMRange, createRectsFromDOMRange} from '@lexical/selection';
 import {$isRootTextContentEmpty, $rootTextContent} from '@lexical/text';
 import {mergeRegister} from '@lexical/utils';
 import {
+  $getNodeByKey,
   $getSelection,
   $isRangeSelection,
   $isTextNode,
@@ -69,7 +70,7 @@ import useModal from '../../hooks/useModal';
 import CommentEditorTheme from '../../themes/CommentEditorTheme';
 import Button from '../../ui/Button';
 import ContentEditable from '../../ui/ContentEditable';
-import {$patchSelectedCommentId} from './commentState';
+import {$getCommentIdsState, $patchSelectedCommentId} from './commentState';
 
 export const INSERT_INLINE_COMMAND: LexicalCommand<void> = createCommand(
   'INSERT_INLINE_COMMAND',
@@ -791,7 +792,7 @@ export default function CommentNodeStatePlugin({
       commentStore.addComment(commentOrThread, thread);
       if (isInlineComment) {
         editor.update(() => {
-          $patchSelectedCommentId(commentOrThread.id);
+          $patchSelectedCommentId([commentOrThread.id]);
         });
         setShowCommentInput(false);
       }
@@ -865,6 +866,43 @@ export default function CommentNodeStatePlugin({
             setShowCommentInput(false);
           }
         });
+      }),
+      // style text nodes with comment IDs
+      editor.registerUpdateListener((payload) => {
+        const {mutatedNodes} = payload;
+        editor.getEditorState().read(
+          () => {
+            if (mutatedNodes) {
+              for (const nodes of mutatedNodes.values()) {
+                for (const [nodeKey, nodeMutation] of nodes) {
+                  if (nodeMutation === 'destroyed') {
+                    continue;
+                  }
+                  const node = $getNodeByKey(nodeKey);
+                  const dom = editor.getElementByKey(nodeKey);
+                  if (!dom || !node) {
+                    return;
+                  }
+                  const commentIds = $getCommentIdsState(node);
+                  const numComments = commentIds?.length ?? 0;
+                  const hasComments = numComments > 0;
+
+                  if (hasComments) {
+                    dom.style.setProperty(
+                      '--opacity',
+                      (0.14 * numComments).toString(),
+                    );
+                    dom.classList.add('has-comments');
+                  } else {
+                    dom.style.removeProperty('--opacity');
+                    dom.classList.remove('has-comments');
+                  }
+                }
+              }
+            }
+          },
+          {editor},
+        );
       }),
       editor.registerCommand(
         INSERT_INLINE_COMMAND,
