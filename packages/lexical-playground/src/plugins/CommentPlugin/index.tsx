@@ -878,7 +878,6 @@ export default function CommentPlugin({
 
           if ($isRangeSelection(selection)) {
             const anchorNode = selection.anchor.getNode();
-            // TODO RG: when selecting a range, return ALL of comment IDs under the range here
             if ($isTextNode(anchorNode)) {
               const commentIDs = $getCommentIdsState(anchorNode);
               if (commentIDs !== null) {
