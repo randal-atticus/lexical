@@ -20,28 +20,43 @@ import {
 } from 'lexical';
 import {isEqual, uniq} from 'lodash-es';
 
-const commentIdsState = createState<string, string[]>('commentIds', {
+const commentIdsState = createState<string, string[] | null>('commentIds', {
   isEqual: (a, b) => isEqual(a, b),
   parse: (jsonValue) => {
-    return jsonValue ? (jsonValue as string[]) : [];
+    return jsonValue ? (jsonValue as string[]) : null;
   },
   unparse: (parsed) => {
     return parsed;
   },
 });
 
-export function $getCommentIdsState(node: LexicalNode): string[] {
+export function $getCommentIdsState(node: LexicalNode): string[] | null {
   return $getState(node, commentIdsState);
 }
 
-export function $setCommentIdsState<T extends LexicalNode>(
+function $setCommentIdsState<T extends LexicalNode>(
   node: T,
-  valueOrUpdater: ValueOrUpdater<string[]>,
+  valueOrUpdater: ValueOrUpdater<string[] | null>,
 ): T {
   return $setState(node, commentIdsState, valueOrUpdater);
 }
 
-export function $patchSelectedCommentId(commentIds: string[]): boolean {
+export function $removeCommentIds(node: LexicalNode, commentIds: string[]) {
+  $setState(node, commentIdsState, (existingCommentIds: string[] | null) => {
+    if (!existingCommentIds || existingCommentIds.length === 0) {
+      return null;
+    }
+    const newValue = existingCommentIds.filter(
+      (id) => !commentIds.includes(id),
+    );
+    if (newValue.length === 0) {
+      return null;
+    }
+    return newValue;
+  });
+}
+
+export function $addSelectedCommentIds(commentIds: string[]): boolean {
   let selection = $getSelection();
   if (!selection) {
     const prevSelection = $getPreviousSelection();
@@ -52,7 +67,7 @@ export function $patchSelectedCommentId(commentIds: string[]): boolean {
     $setSelection(selection);
   }
 
-  const addCommentIdsUpdater = (prevCommentIds: string[]) => {
+  const addCommentIdsUpdater = (prevCommentIds: string[] | null) => {
     return uniq([...(prevCommentIds ?? []), ...commentIds]);
   };
 

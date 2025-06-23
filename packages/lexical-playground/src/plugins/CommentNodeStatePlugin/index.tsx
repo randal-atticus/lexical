@@ -70,7 +70,11 @@ import useModal from '../../hooks/useModal';
 import CommentEditorTheme from '../../themes/CommentEditorTheme';
 import Button from '../../ui/Button';
 import ContentEditable from '../../ui/ContentEditable';
-import {$getCommentIdsState, $patchSelectedCommentId} from './commentState';
+import {
+  $addSelectedCommentIds,
+  $getCommentIdsState,
+  $removeCommentIds,
+} from './commentState';
 
 export const INSERT_INLINE_COMMAND: LexicalCommand<void> = createCommand(
   'INSERT_INLINE_COMMAND',
@@ -747,8 +751,6 @@ export default function CommentNodeStatePlugin({
   const deleteCommentOrThread = useCallback(
     (comment: Comment | Thread, thread?: Thread) => {
       if (comment.type === 'comment') {
-        // TODO: delete comment or thread
-        /*
         const deletionInfo = commentStore.deleteCommentOrThread(
           comment,
           thread,
@@ -762,27 +764,24 @@ export default function CommentNodeStatePlugin({
         commentStore.deleteCommentOrThread(comment);
         // Remove ids from associated marks
         const id = thread !== undefined ? thread.id : comment.id;
-        const markNodeKeys = markNodeMap.get(id);
-        if (markNodeKeys !== undefined) {
+        const nodeKeys = nodeMap.get(id);
+        if (nodeKeys !== undefined) {
           // Do async to avoid causing a React infinite loop
           setTimeout(() => {
             editor.update(() => {
-              for (const key of markNodeKeys) {
-                const node: null | MarkNode = $getNodeByKey(key);
-                if ($isMarkNode(node)) {
-                  node.deleteID(id);
-                  if (node.getIDs().length === 0) {
-                    $unwrapMarkNode(node);
-                  }
+              for (const key of nodeKeys) {
+                const node = $getNodeByKey(key);
+                if (!node) {
+                  continue;
                 }
+                $removeCommentIds(node, [comment.id]);
               }
             });
           });
-        }*/
+        }
       }
     },
-    //[commentStore, editor],
-    [],
+    [commentStore, editor, nodeMap],
   );
 
   const submitAddComment = useCallback(
@@ -795,7 +794,7 @@ export default function CommentNodeStatePlugin({
       commentStore.addComment(commentOrThread, thread);
       if (isInlineComment) {
         editor.update(() => {
-          $patchSelectedCommentId([commentOrThread.id]);
+          $addSelectedCommentIds([commentOrThread.id]);
         });
         setShowCommentInput(false);
       }
@@ -806,7 +805,6 @@ export default function CommentNodeStatePlugin({
   useEffect(() => {
     const changedElems: Array<HTMLElement> = [];
     for (let i = 0; i < activeIDs.length; i++) {
-      // TODO: mutate selected nodes style and open comments side panel
       const id = activeIDs[i];
       const keys = nodeMap.get(id);
       if (keys !== undefined) {
@@ -832,7 +830,6 @@ export default function CommentNodeStatePlugin({
     const nodeKeysToIDs: Map<NodeKey, Array<string>> = new Map();
 
     return mergeRegister(
-      // TODO: handle nested comments
       editor.registerUpdateListener((payload) => {
         const {mutatedNodes} = payload;
         if (!mutatedNodes) {
