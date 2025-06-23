@@ -444,5 +444,5 @@ i.send {
 
 span.has-comments {
   border-bottom: 2px solid orange;
-  background: rgba(255, 212, 0, var(--opacity, 0.14));
+  background: rgba(255, 212, 0, calc(var(--num-comments, 0) * 0.14));
 }

@@ -70,7 +70,7 @@ import CommentEditorTheme from '../../themes/CommentEditorTheme';
 import Button from '../../ui/Button';
 import ContentEditable from '../../ui/ContentEditable';
 import {
-  $addSelectedCommentIds,
+  $addCommentIdsToSelection,
   $getCommentIdsState,
   $removeCommentIds,
 } from './commentState';
@@ -792,7 +792,7 @@ export default function CommentPlugin({
       commentStore.addComment(commentOrThread, thread);
       if (isInlineComment) {
         editor.update(() => {
-          $addSelectedCommentIds([commentOrThread.id]);
+          $addCommentIdsToSelection([commentOrThread.id]);
         });
         setShowCommentInput(false);
       }
@@ -907,39 +907,34 @@ export default function CommentPlugin({
       // style text nodes with comment IDs
       editor.registerUpdateListener((payload) => {
         const {mutatedNodes} = payload;
-        editor.getEditorState().read(
-          () => {
-            if (mutatedNodes) {
-              for (const nodes of mutatedNodes.values()) {
-                for (const [nodeKey, nodeMutation] of nodes) {
-                  if (nodeMutation === 'destroyed') {
-                    continue;
-                  }
-                  const node = $getNodeByKey(nodeKey);
-                  const dom = editor.getElementByKey(nodeKey);
-                  if (!dom || !node) {
-                    return;
-                  }
-                  const commentIds = $getCommentIdsState(node);
-                  const numComments = commentIds?.length ?? 0;
-                  const hasComments = numComments > 0;
+        editor.read(() => {
+          if (!mutatedNodes) {
+            return;
+          }
+          for (const nodes of mutatedNodes.values()) {
+            for (const [nodeKey, nodeMutation] of nodes) {
+              if (nodeMutation === 'destroyed') {
+                continue;
+              }
+              const node = $getNodeByKey(nodeKey);
+              const dom = editor.getElementByKey(nodeKey);
+              if (!dom || !node) {
+                return;
+              }
+              const commentIds = $getCommentIdsState(node);
+              const numComments = commentIds?.length ?? 0;
+              const hasComments = numComments > 0;
 
-                  if (hasComments) {
-                    dom.style.setProperty(
-                      '--opacity',
-                      (0.14 * numComments).toString(),
-                    );
-                    dom.classList.add('has-comments');
-                  } else {
-                    dom.style.removeProperty('--opacity');
-                    dom.classList.remove('has-comments');
-                  }
-                }
+              if (hasComments) {
+                dom.style.setProperty('--num-comments', numComments.toString());
+                dom.classList.add('has-comments');
+              } else {
+                dom.style.removeProperty('--num-comments');
+                dom.classList.remove('has-comments');
               }
             }
-          },
-          {editor},
-        );
+          }
+        });
       }),
       editor.registerCommand(
         INSERT_INLINE_COMMAND,

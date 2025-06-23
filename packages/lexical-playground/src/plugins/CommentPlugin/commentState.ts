@@ -56,7 +56,7 @@ export function $removeCommentIds(node: LexicalNode, commentIds: string[]) {
   });
 }
 
-export function $addSelectedCommentIds(commentIds: string[]): boolean {
+export function $addCommentIdsToSelection(commentIds: string[]): boolean {
   let selection = $getSelection();
   if (!selection) {
     const prevSelection = $getPreviousSelection();
