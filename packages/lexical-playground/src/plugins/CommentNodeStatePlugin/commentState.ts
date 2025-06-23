@@ -23,7 +23,7 @@ import {isEqual, uniq} from 'lodash-es';
 const commentIdsState = createState<string, string[]>('commentIds', {
   isEqual: (a, b) => isEqual(a, b),
   parse: (jsonValue) => {
-    return jsonValue as string[];
+    return jsonValue ? (jsonValue as string[]) : [];
   },
   unparse: (parsed) => {
     return parsed;

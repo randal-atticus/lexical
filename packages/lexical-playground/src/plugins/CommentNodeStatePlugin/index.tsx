@@ -805,11 +805,10 @@ export default function CommentNodeStatePlugin({
 
   useEffect(() => {
     const changedElems: Array<HTMLElement> = [];
-    /*
     for (let i = 0; i < activeIDs.length; i++) {
       // TODO: mutate selected nodes style and open comments side panel
       const id = activeIDs[i];
-      const keys = markNodeMap.get(id);
+      const keys = nodeMap.get(id);
       if (keys !== undefined) {
         for (const key of keys) {
           const elem = editor.getElementByKey(key);
@@ -820,14 +819,14 @@ export default function CommentNodeStatePlugin({
           }
         }
       }
-    }*/
+    }
     return () => {
       for (let i = 0; i < changedElems.length; i++) {
         const changedElem = changedElems[i];
         changedElem.classList.remove('selected');
       }
     };
-  }, [activeIDs, editor]);
+  }, [activeIDs, editor, nodeMap]);
 
   useEffect(() => {
     const nodeKeysToIDs: Map<NodeKey, Array<string>> = new Map();
