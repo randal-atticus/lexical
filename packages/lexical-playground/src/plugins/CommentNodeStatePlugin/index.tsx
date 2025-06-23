@@ -716,6 +716,9 @@ export default function CommentNodeStatePlugin({
   const [editor] = useLexicalComposerContext();
   const commentStore = useMemo(() => new CommentStore(editor), [editor]);
   const comments = useCommentStore(commentStore);
+  const nodeMap = useMemo<Map<string, Set<NodeKey>>>(() => {
+    return new Map();
+  }, []);
 
   const [activeAnchorKey, setActiveAnchorKey] = useState<NodeKey | null>();
   const [activeIDs, setActiveIDs] = useState<Array<string>>([]);
@@ -802,9 +805,9 @@ export default function CommentNodeStatePlugin({
 
   useEffect(() => {
     const changedElems: Array<HTMLElement> = [];
+    /*
     for (let i = 0; i < activeIDs.length; i++) {
       // TODO: mutate selected nodes style and open comments side panel
-      /*
       const id = activeIDs[i];
       const keys = markNodeMap.get(id);
       if (keys !== undefined) {
@@ -816,8 +819,8 @@ export default function CommentNodeStatePlugin({
             setShowComments(true);
           }
         }
-      }*/
-    }
+      }
+    }*/
     return () => {
       for (let i = 0; i < changedElems.length; i++) {
         const changedElem = changedElems[i];
@@ -827,11 +830,52 @@ export default function CommentNodeStatePlugin({
   }, [activeIDs, editor]);
 
   useEffect(() => {
-    //const markNodeKeysToIDs: Map<NodeKey, Array<string>> = new Map();
+    const nodeKeysToIDs: Map<NodeKey, Array<string>> = new Map();
 
     return mergeRegister(
       // TODO: handle nested comments
-      // REMOVED: syncing marknodes with markNodeMap
+      editor.registerUpdateListener((payload) => {
+        const {mutatedNodes} = payload;
+        if (!mutatedNodes) {
+          return;
+        }
+        editor.getEditorState().read(() => {
+          for (const nodes of mutatedNodes.values()) {
+            for (const [key, mutation] of nodes) {
+              let ids: NodeKey[] = [];
+
+              if (mutation === 'destroyed') {
+                ids = nodeKeysToIDs.get(key) || [];
+              } else {
+                const node = $getNodeByKey(key)!;
+                ids = $getCommentIdsState(node) || [];
+              }
+              for (let i = 0; i < ids.length; i++) {
+                const id = ids[i];
+                let nodeKeys = nodeMap.get(id);
+                nodeKeysToIDs.set(key, ids);
+
+                if (mutation === 'destroyed') {
+                  if (nodeKeys !== undefined) {
+                    nodeKeys.delete(key);
+                    if (nodeKeys.size === 0) {
+                      nodeMap.delete(id);
+                    }
+                  }
+                } else {
+                  if (nodeKeys === undefined) {
+                    nodeKeys = new Set();
+                    nodeMap.set(id, nodeKeys);
+                  }
+                  if (!nodeKeys.has(key)) {
+                    nodeKeys.add(key);
+                  }
+                }
+              }
+            }
+          }
+        });
+      }),
       editor.registerUpdateListener(({editorState, tags}) => {
         editorState.read(() => {
           const selection = $getSelection();
@@ -840,10 +884,9 @@ export default function CommentNodeStatePlugin({
 
           if ($isRangeSelection(selection)) {
             const anchorNode = selection.anchor.getNode();
-
+            // TODO RG: when selecting a range, return ALL of comment IDs under the range here
             if ($isTextNode(anchorNode)) {
-              // TODO RG: when selecting a range, return the comment IDs under the range here
-              const commentIDs: string[] = [];
+              const commentIDs = $getCommentIdsState(anchorNode);
               if (commentIDs !== null) {
                 setActiveIDs(commentIDs);
                 hasActiveIds = true;
@@ -917,7 +960,7 @@ export default function CommentNodeStatePlugin({
         COMMAND_PRIORITY_EDITOR,
       ),
     );
-  }, [editor]);
+  }, [editor, nodeMap]);
 
   const onAddComment = () => {
     editor.dispatchCommand(INSERT_INLINE_COMMAND, undefined);
