@@ -42,7 +42,6 @@ import {
   COMMAND_PRIORITY_EDITOR,
   COMMAND_PRIORITY_NORMAL,
   createCommand,
-  //createState,
   getDOMSelection,
   KEY_ESCAPE_COMMAND,
 } from 'lexical';
