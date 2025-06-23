@@ -541,6 +541,7 @@ function CommentsPanelList({
     thread?: Thread,
   ) => void;
 }): JSX.Element {
+  const [editor] = useLexicalComposerContext();
   const [counter, setCounter] = useState(0);
   const [modal, showModal] = useModal();
   const rtf = useMemo(
@@ -570,22 +571,20 @@ function CommentsPanelList({
         const id = commentOrThread.id;
         if (commentOrThread.type === 'thread') {
           const handleClickThread = () => {
-            // TODO: select the start of the node corresponding to the thread
-            /*
-            const markNodeKeys = markNodeMap.get(id);
+            const nodeKeys = nodeMap.get(id);
             if (
-              markNodeKeys !== undefined &&
+              nodeKeys !== undefined &&
               (activeIDs === null || activeIDs.indexOf(id) === -1)
             ) {
               const activeElement = document.activeElement;
-              // Move selection to the start of the mark, so that we
+              // Move selection to the start of the node, so that we
               // update the UI with the selected thread.
               editor.update(
                 () => {
-                  const markNodeKey = Array.from(markNodeKeys)[0];
-                  const markNode = $getNodeByKey<MarkNode>(markNodeKey);
-                  if ($isMarkNode(markNode)) {
-                    markNode.selectStart();
+                  const nodeKey = Array.from(nodeKeys)[0];
+                  const node = $getNodeByKey(nodeKey);
+                  if (node && $getCommentIdsState(node)) {
+                    node.selectStart();
                   }
                 },
                 {
@@ -597,7 +596,7 @@ function CommentsPanelList({
                   },
                 },
               );
-            }*/
+            }
           };
 
           return (
@@ -762,7 +761,7 @@ export default function CommentNodeStatePlugin({
         commentStore.addComment(markedComment, thread, index);
       } else {
         commentStore.deleteCommentOrThread(comment);
-        // Remove ids from associated marks
+        // Remove ids from associated nodes
         const id = thread !== undefined ? thread.id : comment.id;
         const nodeKeys = nodeMap.get(id);
         if (nodeKeys !== undefined) {
