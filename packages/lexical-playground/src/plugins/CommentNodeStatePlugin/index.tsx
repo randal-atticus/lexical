@@ -525,6 +525,7 @@ function CommentsPanelList({
   deleteCommentOrThread,
   listRef,
   submitAddComment,
+  nodeMap,
 }: {
   activeIDs: Array<string>;
   comments: Comments;
@@ -533,6 +534,7 @@ function CommentsPanelList({
     thread?: Thread,
   ) => void;
   listRef: {current: null | HTMLUListElement};
+  nodeMap: Map<string, Set<NodeKey>>;
   submitAddComment: (
     commentOrThread: Comment | Thread,
     isInlineComment: boolean,
@@ -603,14 +605,9 @@ function CommentsPanelList({
             <li
               key={id}
               onClick={handleClickThread}
-              /*
               className={`CommentPlugin_CommentsPanel_List_Thread ${
-                markNodeMap.has(id) ? 'interactive' : ''
-              } ${activeIDs.indexOf(id) === -1 ? '' : 'active'}`}>*/
-              // TODO: if the marknode exists, it's interactive
-              className={`CommentPlugin_CommentsPanel_List_Thread ${
-                activeIDs.indexOf(id) === -1 ? '' : 'active'
-              }`}>
+                nodeMap.has(id) ? 'interactive' : ''
+              } ${activeIDs.indexOf(id) === -1 ? '' : 'active'}`}>
               <div className="CommentPlugin_CommentsPanel_List_Thread_QuoteBox">
                 <blockquote className="CommentPlugin_CommentsPanel_List_Thread_Quote">
                   {'> '}
@@ -671,6 +668,7 @@ function CommentsPanel({
   deleteCommentOrThread,
   comments,
   submitAddComment,
+  nodeMap,
 }: {
   activeIDs: Array<string>;
   comments: Comments;
@@ -678,6 +676,7 @@ function CommentsPanel({
     commentOrThread: Comment | Thread,
     thread?: Thread,
   ) => void;
+  nodeMap: Map<string, Set<NodeKey>>;
   submitAddComment: (
     commentOrThread: Comment | Thread,
     isInlineComment: boolean,
@@ -699,6 +698,7 @@ function CommentsPanel({
           deleteCommentOrThread={deleteCommentOrThread}
           listRef={listRef}
           submitAddComment={submitAddComment}
+          nodeMap={nodeMap}
         />
       )}
     </div>
@@ -1002,6 +1002,7 @@ export default function CommentNodeStatePlugin({
             submitAddComment={submitAddComment}
             deleteCommentOrThread={deleteCommentOrThread}
             activeIDs={activeIDs}
+            nodeMap={nodeMap}
           />,
           document.body,
         )}
