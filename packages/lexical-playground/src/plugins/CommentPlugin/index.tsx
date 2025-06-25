@@ -19,14 +19,6 @@ import type {Doc} from 'yjs';
 
 import './index.css';
 
-import {
-  $createMarkNode,
-  $getMarkIDs,
-  $isMarkNode,
-  $unwrapMarkNode,
-  $wrapSelectionInMarkNode,
-  MarkNode,
-} from '@lexical/mark';
 import {AutoFocusPlugin} from '@lexical/react/LexicalAutoFocusPlugin';
 import {ClearEditorPlugin} from '@lexical/react/LexicalClearEditorPlugin';
 import {useCollaborationContext} from '@lexical/react/LexicalCollaborationContext';
@@ -39,7 +31,7 @@ import {OnChangePlugin} from '@lexical/react/LexicalOnChangePlugin';
 import {PlainTextPlugin} from '@lexical/react/LexicalPlainTextPlugin';
 import {createDOMRange, createRectsFromDOMRange} from '@lexical/selection';
 import {$isRootTextContentEmpty, $rootTextContent} from '@lexical/text';
-import {mergeRegister, registerNestedElementResolver} from '@lexical/utils';
+import {mergeRegister} from '@lexical/utils';
 import {
   $getNodeByKey,
   $getSelection,
@@ -77,6 +69,11 @@ import useModal from '../../hooks/useModal';
 import CommentEditorTheme from '../../themes/CommentEditorTheme';
 import Button from '../../ui/Button';
 import ContentEditable from '../../ui/ContentEditable';
+import {
+  $addCommentIdsToSelection,
+  $getCommentIdsState,
+  $removeCommentIds,
+} from './commentState';
 
 export const INSERT_INLINE_COMMAND: LexicalCommand<void> = createCommand(
   'INSERT_INLINE_COMMAND',
@@ -527,7 +524,7 @@ function CommentsPanelList({
   deleteCommentOrThread,
   listRef,
   submitAddComment,
-  markNodeMap,
+  nodeMap,
 }: {
   activeIDs: Array<string>;
   comments: Comments;
@@ -536,7 +533,7 @@ function CommentsPanelList({
     thread?: Thread,
   ) => void;
   listRef: {current: null | HTMLUListElement};
-  markNodeMap: Map<string, Set<NodeKey>>;
+  nodeMap: Map<string, Set<NodeKey>>;
   submitAddComment: (
     commentOrThread: Comment | Thread,
     isInlineComment: boolean,
@@ -573,20 +570,20 @@ function CommentsPanelList({
         const id = commentOrThread.id;
         if (commentOrThread.type === 'thread') {
           const handleClickThread = () => {
-            const markNodeKeys = markNodeMap.get(id);
+            const nodeKeys = nodeMap.get(id);
             if (
-              markNodeKeys !== undefined &&
+              nodeKeys !== undefined &&
               (activeIDs === null || activeIDs.indexOf(id) === -1)
             ) {
               const activeElement = document.activeElement;
-              // Move selection to the start of the mark, so that we
+              // Move selection to the start of the node, so that we
               // update the UI with the selected thread.
               editor.update(
                 () => {
-                  const markNodeKey = Array.from(markNodeKeys)[0];
-                  const markNode = $getNodeByKey<MarkNode>(markNodeKey);
-                  if ($isMarkNode(markNode)) {
-                    markNode.selectStart();
+                  const nodeKey = Array.from(nodeKeys)[0];
+                  const node = $getNodeByKey(nodeKey);
+                  if (node && $getCommentIdsState(node)) {
+                    node.selectStart();
                   }
                 },
                 {
@@ -607,7 +604,7 @@ function CommentsPanelList({
               key={id}
               onClick={handleClickThread}
               className={`CommentPlugin_CommentsPanel_List_Thread ${
-                markNodeMap.has(id) ? 'interactive' : ''
+                nodeMap.has(id) ? 'interactive' : ''
               } ${activeIDs.indexOf(id) === -1 ? '' : 'active'}`}>
               <div className="CommentPlugin_CommentsPanel_List_Thread_QuoteBox">
                 <blockquote className="CommentPlugin_CommentsPanel_List_Thread_Quote">
@@ -669,7 +666,7 @@ function CommentsPanel({
   deleteCommentOrThread,
   comments,
   submitAddComment,
-  markNodeMap,
+  nodeMap,
 }: {
   activeIDs: Array<string>;
   comments: Comments;
@@ -677,7 +674,7 @@ function CommentsPanel({
     commentOrThread: Comment | Thread,
     thread?: Thread,
   ) => void;
-  markNodeMap: Map<string, Set<NodeKey>>;
+  nodeMap: Map<string, Set<NodeKey>>;
   submitAddComment: (
     commentOrThread: Comment | Thread,
     isInlineComment: boolean,
@@ -699,7 +696,7 @@ function CommentsPanel({
           deleteCommentOrThread={deleteCommentOrThread}
           listRef={listRef}
           submitAddComment={submitAddComment}
-          markNodeMap={markNodeMap}
+          nodeMap={nodeMap}
         />
       )}
     </div>
@@ -721,9 +718,10 @@ export default function CommentPlugin({
   const [editor] = useLexicalComposerContext();
   const commentStore = useMemo(() => new CommentStore(editor), [editor]);
   const comments = useCommentStore(commentStore);
-  const markNodeMap = useMemo<Map<string, Set<NodeKey>>>(() => {
+  const nodeMap = useMemo<Map<string, Set<NodeKey>>>(() => {
     return new Map();
   }, []);
+
   const [activeAnchorKey, setActiveAnchorKey] = useState<NodeKey | null>();
   const [activeIDs, setActiveIDs] = useState<Array<string>>([]);
   const [showCommentInput, setShowCommentInput] = useState(false);
@@ -762,28 +760,26 @@ export default function CommentPlugin({
         commentStore.addComment(markedComment, thread, index);
       } else {
         commentStore.deleteCommentOrThread(comment);
-        // Remove ids from associated marks
+        // Remove ids from associated nodes
         const id = thread !== undefined ? thread.id : comment.id;
-        const markNodeKeys = markNodeMap.get(id);
-        if (markNodeKeys !== undefined) {
+        const nodeKeys = nodeMap.get(id);
+        if (nodeKeys !== undefined) {
           // Do async to avoid causing a React infinite loop
           setTimeout(() => {
             editor.update(() => {
-              for (const key of markNodeKeys) {
-                const node: null | MarkNode = $getNodeByKey(key);
-                if ($isMarkNode(node)) {
-                  node.deleteID(id);
-                  if (node.getIDs().length === 0) {
-                    $unwrapMarkNode(node);
-                  }
+              for (const key of nodeKeys) {
+                const node = $getNodeByKey(key);
+                if (!node) {
+                  continue;
                 }
+                $removeCommentIds(node, [comment.id]);
               }
             });
           });
         }
       }
     },
-    [commentStore, editor, markNodeMap],
+    [commentStore, editor, nodeMap],
   );
 
   const submitAddComment = useCallback(
@@ -796,13 +792,7 @@ export default function CommentPlugin({
       commentStore.addComment(commentOrThread, thread);
       if (isInlineComment) {
         editor.update(() => {
-          if ($isRangeSelection(selection)) {
-            const isBackward = selection.isBackward();
-            const id = commentOrThread.id;
-
-            // Wrap content in a MarkNode
-            $wrapSelectionInMarkNode(selection, isBackward, id);
-          }
+          $addCommentIdsToSelection([commentOrThread.id]);
         });
         setShowCommentInput(false);
       }
@@ -814,7 +804,7 @@ export default function CommentPlugin({
     const changedElems: Array<HTMLElement> = [];
     for (let i = 0; i < activeIDs.length; i++) {
       const id = activeIDs[i];
-      const keys = markNodeMap.get(id);
+      const keys = nodeMap.get(id);
       if (keys !== undefined) {
         for (const key of keys) {
           const elem = editor.getElementByKey(key);
@@ -832,67 +822,54 @@ export default function CommentPlugin({
         changedElem.classList.remove('selected');
       }
     };
-  }, [activeIDs, editor, markNodeMap]);
+  }, [activeIDs, editor, nodeMap]);
 
   useEffect(() => {
-    const markNodeKeysToIDs: Map<NodeKey, Array<string>> = new Map();
+    const nodeKeysToIDs: Map<NodeKey, Array<string>> = new Map();
 
     return mergeRegister(
-      registerNestedElementResolver<MarkNode>(
-        editor,
-        MarkNode,
-        (from: MarkNode) => {
-          return $createMarkNode(from.getIDs());
-        },
-        (from: MarkNode, to: MarkNode) => {
-          // Merge the IDs
-          const ids = from.getIDs();
-          ids.forEach((id) => {
-            to.addID(id);
-          });
-        },
-      ),
-      editor.registerMutationListener(
-        MarkNode,
-        (mutations) => {
-          editor.getEditorState().read(() => {
-            for (const [key, mutation] of mutations) {
-              const node: null | MarkNode = $getNodeByKey(key);
+      editor.registerUpdateListener((payload) => {
+        const {mutatedNodes} = payload;
+        if (!mutatedNodes) {
+          return;
+        }
+        editor.getEditorState().read(() => {
+          for (const nodes of mutatedNodes.values()) {
+            for (const [key, mutation] of nodes) {
               let ids: NodeKey[] = [];
 
               if (mutation === 'destroyed') {
-                ids = markNodeKeysToIDs.get(key) || [];
-              } else if ($isMarkNode(node)) {
-                ids = node.getIDs();
+                ids = nodeKeysToIDs.get(key) || [];
+              } else {
+                const node = $getNodeByKey(key)!;
+                ids = $getCommentIdsState(node) || [];
               }
-
               for (let i = 0; i < ids.length; i++) {
                 const id = ids[i];
-                let markNodeKeys = markNodeMap.get(id);
-                markNodeKeysToIDs.set(key, ids);
+                let nodeKeys = nodeMap.get(id);
+                nodeKeysToIDs.set(key, ids);
 
                 if (mutation === 'destroyed') {
-                  if (markNodeKeys !== undefined) {
-                    markNodeKeys.delete(key);
-                    if (markNodeKeys.size === 0) {
-                      markNodeMap.delete(id);
+                  if (nodeKeys !== undefined) {
+                    nodeKeys.delete(key);
+                    if (nodeKeys.size === 0) {
+                      nodeMap.delete(id);
                     }
                   }
                 } else {
-                  if (markNodeKeys === undefined) {
-                    markNodeKeys = new Set();
-                    markNodeMap.set(id, markNodeKeys);
+                  if (nodeKeys === undefined) {
+                    nodeKeys = new Set();
+                    nodeMap.set(id, nodeKeys);
                   }
-                  if (!markNodeKeys.has(key)) {
-                    markNodeKeys.add(key);
+                  if (!nodeKeys.has(key)) {
+                    nodeKeys.add(key);
                   }
                 }
               }
             }
-          });
-        },
-        {skipInitialization: false},
-      ),
+          }
+        });
+      }),
       editor.registerUpdateListener(({editorState, tags}) => {
         editorState.read(() => {
           const selection = $getSelection();
@@ -901,12 +878,8 @@ export default function CommentPlugin({
 
           if ($isRangeSelection(selection)) {
             const anchorNode = selection.anchor.getNode();
-
             if ($isTextNode(anchorNode)) {
-              const commentIDs = $getMarkIDs(
-                anchorNode,
-                selection.anchor.offset,
-              );
+              const commentIDs = $getCommentIdsState(anchorNode);
               if (commentIDs !== null) {
                 setActiveIDs(commentIDs);
                 hasActiveIds = true;
@@ -930,6 +903,38 @@ export default function CommentPlugin({
           }
         });
       }),
+      // style text nodes with comment IDs
+      editor.registerUpdateListener((payload) => {
+        const {mutatedNodes} = payload;
+        editor.read(() => {
+          if (!mutatedNodes) {
+            return;
+          }
+          for (const nodes of mutatedNodes.values()) {
+            for (const [nodeKey, nodeMutation] of nodes) {
+              if (nodeMutation === 'destroyed') {
+                continue;
+              }
+              const node = $getNodeByKey(nodeKey);
+              const dom = editor.getElementByKey(nodeKey);
+              if (!dom || !node) {
+                return;
+              }
+              const commentIds = $getCommentIdsState(node);
+              const numComments = commentIds?.length ?? 0;
+              const hasComments = numComments > 0;
+
+              if (hasComments) {
+                dom.style.setProperty('--num-comments', numComments.toString());
+                dom.classList.add('has-comments');
+              } else {
+                dom.style.removeProperty('--num-comments');
+                dom.classList.remove('has-comments');
+              }
+            }
+          }
+        });
+      }),
       editor.registerCommand(
         INSERT_INLINE_COMMAND,
         () => {
@@ -943,7 +948,7 @@ export default function CommentPlugin({
         COMMAND_PRIORITY_EDITOR,
       ),
     );
-  }, [editor, markNodeMap]);
+  }, [editor, nodeMap]);
 
   const onAddComment = () => {
     editor.dispatchCommand(INSERT_INLINE_COMMAND, undefined);
@@ -989,7 +994,7 @@ export default function CommentPlugin({
             submitAddComment={submitAddComment}
             deleteCommentOrThread={deleteCommentOrThread}
             activeIDs={activeIDs}
-            markNodeMap={markNodeMap}
+            nodeMap={nodeMap}
           />,
           document.body,
         )}
