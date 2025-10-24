@@ -187,8 +187,7 @@ export function useYjsCollaborationV2__EXPERIMENTAL(
     rootName?: string;
     __shouldBootstrapUnsafe?: boolean;
     syncCursorPositionsFn?: SyncCursorPositionsFn;
-  } = {
-  },
+  } = {},
 ): BindingV2 {
   const {
     awarenessData,
